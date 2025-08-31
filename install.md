@@ -20,6 +20,7 @@ sudo nano copyparty.conf
 
 # Install service
 sudo useradd -r -s /sbin/nologin -m -d /var/lib/copyparty copyparty
+sudo chown -R copyparty:copyparty /mnt
 cd /etc/systemd/system/
 sudo wget https://raw.githubusercontent.com/9001/copyparty/refs/heads/hovudstraum/contrib/systemd/copyparty.service
 ```
