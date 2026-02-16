@@ -1,6 +1,11 @@
 "use strict";
 
 
+var J_MD2 = 1;
+var sloc0 = '' + location,
+    dbg_kbd = /[?&]dbgkbd\b/.exec(sloc0);
+
+
 // server state
 var server_md = dom_src.value;
 
@@ -330,7 +335,7 @@ window.onbeforeunload = function (e) {
 
 // save handler
 function save(e) {
-    if (e) e.preventDefault();
+    ev(e);
     var save_btn = ebi("save"),
         save_cls = save_btn.className + '';
 
@@ -694,9 +699,42 @@ function reLastIndexOf(txt, ptn, end) {
 }
 
 
+// json formatter
+function fmt_json(e) {
+    ev(e);
+    try {
+        fmt_json2();
+    }
+    catch (ex) {
+        return toast.err(7, 'json-format (CTRL-J) failed\n\n(hint: select the json you want to beautify/minify first)\n\n' + ex);
+    }
+}
+function fmt_json2() {
+    var txt = dom_src.value,
+        o0 = txt.lastIndexOf('\n', dom_src.selectionStart - 1),
+        o1 = txt.indexOf('\n', dom_src.selectionEnd);
+    o0 = o0 + 1 ? o0 + 1 : 0;
+    if (o1 < 0) o1 = txt.length;
+    for (var a = 0; a < 9; a++) {
+        if (has(['\r', '\n', ' '], txt.charAt(o0))) ++o0;
+        if (has(['\r', '\n', ' '], txt.charAt(o1))) --o1;
+    }
+    var jt0 = txt.slice(o0, ++o1),
+        jo = JSON.parse(jt0),
+        jt = JSON.stringify(jo, null, jt0.indexOf('\n') + 1 ? 0 : 2);
+    setsel({
+        "pre": txt.slice(0, o0),
+        "sel": jt,
+        "post": txt.slice(o1),
+        "car": o0,
+        "cdr": o0,
+    });
+}
+
+
 // table formatter
 function fmt_table(e) {
-    if (e) e.preventDefault();
+    ev(e);
     try {
         fmt_table2();
     }
@@ -853,7 +891,7 @@ function fmt_table2() {
 
 // show unicode
 function mark_uni(e) {
-    if (e) e.preventDefault();
+    ev(e);
     dom_tbox.className = '';
 
     var txt = dom_src.value,
@@ -869,7 +907,7 @@ function mark_uni(e) {
 
 // iterate unicode
 function iter_uni(e) {
-    if (e) e.preventDefault();
+    ev(e);
 
     var txt = dom_src.value,
         ofs = dom_src.selectionDirection == "forward" ? dom_src.selectionEnd : dom_src.selectionStart,
@@ -891,7 +929,7 @@ function iter_uni(e) {
 
 // configure whitelist
 function cfg_uni(e) {
-    if (e) e.preventDefault();
+    ev(e);
 
     modal.prompt("unicode whitelist", esc_uni_whitelist, function (reply) {
         esc_uni_whitelist = reply;
@@ -919,7 +957,9 @@ var set_lno = (function () {
             if (i === pi)
                 return;
 
-            var v = 'L' + dom_src.value.slice(0, i).split('\n').length;
+            var lns = dom_src.value.slice(0, i).split('\n'),
+                v = lns.length + ' : ' + lns.pop().length;
+
             if (v != pv)
                 lno.innerHTML = v;
 
@@ -936,23 +976,30 @@ var set_lno = (function () {
 
 // hotkeys / toolbar
 (function () {
-    var keydown = function (ev) {
-        if (!ev && window.event) {
-            ev = window.event;
+    var keydown = function (e) {
+        if (!e && window.event) {
+            e = window.event;
             if (dev_fbw == 1) {
                 toast.warn(10, 'hello from fallback code ;_;\ncheck console trace');
                 console.error('using window.event');
             }
         }
-        var kc = ev.code || ev.keyCode || ev.which,
+        var k = (e.key || e.code) + '',
             editing = document.activeElement == dom_src;
 
-        //console.log(ev.key, ev.code, ev.keyCode, ev.which);
-        if (ctrl(ev) && (ev.code == "KeyS" || kc == 83)) {
+        if (k.startsWith('Key'))
+            k = k.slice(3);
+
+        var kl = k.toLowerCase();
+
+        if (dbg_kbd)
+            console.log('KBD', k, kl, e.key, e.code, e.keyCode, e.which);
+
+        if (ctrl(e) && kl == "s") {
             save();
             return false;
         }
-        if (ev.code == "Escape" || kc == 27) {
+        if (k == "Escape" || k == "Esc") {
             var d = ebi('helpclose');
             if (d)
                 d.click();
@@ -960,46 +1007,48 @@ var set_lno = (function () {
         if (editing)
             set_lno();
 
-        if (ctrl(ev)) {
-            if (ev.code == "KeyE") {
+        if (ctrl(e)) {
+            if (kl == "e") {
                 dom_nsbs.click();
                 return false;
             }
             if (!editing)
                 return true;
 
-            if (ev.code == "KeyH" || kc == 72) {
-                md_header(ev.shiftKey);
+            if (kl == "h") {
+                md_header(e.shiftKey);
                 return false;
             }
-            if (ev.code == "KeyZ" || kc == 90) {
-                if (ev.shiftKey)
+            if (kl == "z") {
+                if (e.shiftKey)
                     action_stack.redo();
                 else
                     action_stack.undo();
 
                 return false;
             }
-            if (ev.code == "KeyY" || kc == 89) {
+            if (kl == "y") {
                 action_stack.redo();
                 return false;
             }
-            if (ev.code == "KeyK") {
+            if (kl == "j") {
+                fmt_json(e.shiftKey);
+                return false;
+            }
+            if (kl == "k") {
                 fmt_table();
                 return false;
             }
-            if (ev.code == "KeyU") {
+            if (kl == "u") {
                 iter_uni();
                 return false;
             }
-            var up = ev.code == "ArrowUp" || kc == 38;
-            var dn = ev.code == "ArrowDown" || kc == 40;
-            if (up || dn) {
-                md_p_jump(dn);
+            if (k == "ArrowUp" || k == "ArrowDown") {
+                md_p_jump(k == "ArrowDown");
                 return false;
             }
-            if (ev.code == "KeyX" || ev.code == "KeyC") {
-                md_cut(ev.code == "KeyX");
+            if (kl == "x" || kl == "c") {
+                md_cut(kl == "x");
                 return true; //sic
             }
         }
@@ -1007,18 +1056,18 @@ var set_lno = (function () {
             if (!editing)
                 return true;
 
-            if (ev.code == "Tab" || kc == 9) {
-                md_indent(ev.shiftKey);
+            if (k == "Tab") {
+                md_indent(e.shiftKey);
                 return false;
             }
-            if (ev.code == "Home" || kc == 36) {
-                md_home(ev.shiftKey);
+            if (k == "Home") {
+                md_home(e.shiftKey);
                 return false;
             }
-            if (!ev.shiftKey && ((ev.code + '').endsWith("Enter") || kc == 13)) {
+            if (!e.shiftKey && k.endsWith("Enter")) {
                 return md_newline();
             }
-            if (!ev.shiftKey && kc == 8) {
+            if (!e.shiftKey && k == "Backspace") {
                 return md_backspace();
             }
         }
@@ -1029,20 +1078,22 @@ var set_lno = (function () {
 
 
 ebi('tools').onclick = function (e) {
-    if (e) e.preventDefault();
+    ev(e);
     var is_open = dom_tbox.className != 'open';
     dom_tbox.className = is_open ? 'open' : '';
 };
 
 
 ebi('help').onclick = function (e) {
-    if (e) e.preventDefault();
+    ev(e);
     dom_tbox.className = '';
 
     var dom = ebi('helpbox');
     var dtxt = dom.getElementsByTagName('textarea');
     if (dtxt.length > 0) {
-        convert_markdown(dtxt[0].value, dom);
+        var txt = dtxt[0].value;
+        if (!convert_markdown(txt, dom))
+            dom.innerText = txt.split('## markdown')[0];
         dom.innerHTML = '<a href="#" id="helpclose">close</a>' + dom.innerHTML;
     }
 
@@ -1054,6 +1105,7 @@ ebi('help').onclick = function (e) {
 
 
 ebi('fmt_table').onclick = fmt_table;
+ebi('fmt_json').onclick = fmt_json;
 ebi('mark_uni').onclick = mark_uni;
 ebi('iter_uni').onclick = iter_uni;
 ebi('cfg_uni').onclick = cfg_uni;
@@ -1179,3 +1231,5 @@ action_stack = (function () {
         _ref: ref
     }
 })();
+
+J_MD2 = 2;
